@@ -24,9 +24,9 @@ def BackgroundRemove (frame):
 	fgmask = BgSubstract.apply(frame)
 	# fgmask = cv2.dilate(fgmask,kernel)
 	fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
-	fgmask = cv2.erode(fgmask,kernel,iterations=2)
-	fgmask = cv2.dilate(fgmask,kernelRect, iterations =2)
-	fgmask = cv2.erode(fgmask,kernel,iterations=1)
+	# fgmask = cv2.erode(fgmask,kernel,iterations=2)
+	# fgmask = cv2.dilate(fgmask,kernelRect, iterations =2)
+	# fgmask = cv2.erode(fgmask,kernel,iterations=1)
 	# fgmask = cv2.morphologyEx(fgmask,cv2.MORPH_CLOSE ,kernelBig, iterations=2)
 	showFrame('BackGround Remove',fgmask)
 	return fgmask
@@ -34,6 +34,24 @@ def BackgroundRemove (frame):
 def showFrame (name,frame):
 	cv2.imshow(name,frame)
 	return 27 == (cv2.waitKey(30) & 0xff)
+
+def getAverageLine(lines):
+	L = len(lines)
+	rho,theta = 0,0
+	for line in lines:
+		for r,t in line:
+			rho += r
+			theta += t
+	rho = rho/L
+	theta = theta/L
+	return rho/L,theta/L
+
+def getHoughLines(iframe):
+	edges = cv2.Canny(iframe,50,100,apertureSize = 3)
+	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
+	showFrame('Edges',edges)
+	lines = cv2.HoughLines(edges,1,np.pi/180,100)
+	return lines
 
 def getPoints(rho,theta):
 	a = np.cos(theta)
@@ -46,25 +64,23 @@ def getPoints(rho,theta):
 	y2 = int(y0 - 1000*a)
 	return (x1,y1),(x2,y2)
 
-def AddHoughLines(iframe, frame):
-	edges = cv2.Canny(iframe,50,100,apertureSize = 3)
-	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
-	lines = cv2.HoughLines(edges,1,np.pi/180,100)
-	showFrame('Edges',edges)
+def AddHoughLines(lines,frame):
 	try:
-		# z = [sum(y) / len(y) for y in zip(*lines)]
-		# print(lines)
-		# print(z)
-		# p1,p2 = getPoints(z[0],z[1])
-		# cv2.line(frame,p1,p2,Cyan,2)
 		for line in lines:
-			print(line)
 			for rho,theta in line:
 				p1,p2 = getPoints(rho,theta)
 				cv2.line(frame,p1,p2,(0,255,255),2)
 	except:
 		pass
+
+def AddMedianAxis(rho,theta,frame):
+	p1,p2 = getPoints(rho,theta)
+	print(p1,p2)
+	cv2.line(frame,p1,p2,(255,0,255),2)
+
+def TruncateAxis(iframe,frame):
 	
+
 if __name__ == "__main__":
 	VideoPath = "1.mp4"
 	vidObj = cv2.VideoCapture(VideoPath)
@@ -74,9 +90,13 @@ if __name__ == "__main__":
 		fr = cv2.resize(frame, (960, 540))
 		gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
-		AddHoughLines(iframe,fr)
-		# axisImage = cv2.bitwise_and(fr,blank_image,mask=iframe)
-		# axisFrame = cv2.add(axisImage,)
+		lines = getHoughLines(iframe)
+		try:
+			AddHoughLines(lines,fr)
+			rho,theta = getAverageLine(lines)
+			AddMedianAxis(rho,theta,fr)
+		except:
+			pass
 		cv2.imshow('Video',fr)
 		if 27 == (cv2.waitKey(20) & 0xff):
 			break
