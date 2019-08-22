@@ -7,8 +7,9 @@ Cyan = (255,255,0)
 
 ## Background Removal ##
 # BgSubstract = cv2.createBackgroundSubtractorMOG2(history=8000,detectShadows=False)
-BgSubstract = cv2.createBackgroundSubtractorKNN(history=12000,detectShadows=False)
-kernel = np.ones((3,3),np.uint8)
+BgSubstract = cv2.createBackgroundSubtractorKNN()
+kernel1 = np.ones((10,1),np.uint8)
+kernel2 = np.ones((3,1),np.uint8)
 kernelBig = np.ones((5,5),np.uint8)
 kernelMorph = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
 kernelRect = np.array([
@@ -20,11 +21,12 @@ kernelRect = np.array([
 ],dtype=np.uint8)
 
 def BackgroundRemove (frame):
-	frame = cv2.GaussianBlur(frame,(3,3),0)
+	# frame = cv2.GaussianBlur(frame,(3,3),0)
 	fgmask = BgSubstract.apply(frame)
-	# fgmask = cv2.dilate(fgmask,kernel)
-	fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
-	# fgmask = cv2.erode(fgmask,kernel,iterations=2)
+	fgmask = cv2.dilate(fgmask,kernel2)
+	fgmask = cv2.dilate(fgmask,kernel1,iterations = 2)
+	fgmask = cv2.erode(fgmask,kernel1,iterations =2)
+	# fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
 	# fgmask = cv2.dilate(fgmask,kernelRect, iterations =2)
 	# fgmask = cv2.erode(fgmask,kernel,iterations=1)
 	# fgmask = cv2.morphologyEx(fgmask,cv2.MORPH_CLOSE ,kernelBig, iterations=2)
@@ -78,7 +80,7 @@ def AddMedianAxis(rho,theta,frame):
 	print(p1,p2)
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
-def TruncateAxis(iframe,frame):
+#def TruncateAxis(iframe,frame):
 	
 
 if __name__ == "__main__":
