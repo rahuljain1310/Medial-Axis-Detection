@@ -38,7 +38,7 @@ def showFrame (name,frame):
 	cv2.imshow(name,frame)
 	return 27 == (cv2.waitKey(30) & 0xff)
 
-def getMedianLine(lines):
+def getAverageLine(lines):
 	L = len(lines)
 	rho,theta = 0,0
 	for line in lines:
@@ -78,8 +78,6 @@ def theta_filter(lines):
 	# 		print (lines)
 	# 		return None
 	
-
-
 def rho_filter(lines):
 	bins = 60
 	max_rho = 1199
@@ -106,7 +104,6 @@ def rho_filter(lines):
 	# 		print (lines)
 	# 		return None
 
-
 def getMedialLine(lines):
 	L = len(lines)
 	rho_a = []
@@ -126,10 +123,6 @@ def getHoughLines(iframe):
 	lines = cv2.HoughLines(edges,1,np.pi/180,90)
 	lines = rho_filter(theta_filter(lines))
 	Segments = cv2.HoughLinesP(edges,rho = 1,theta = np.pi/180,threshold = 75,minLineLength=20,maxLineGap=10)
-	
-	if lines.__class__==np.ndarray:
-		# print((lines[0][0][0]))
-		pass
 	return lines,Segments
 
 def getPoints(rho,theta):
@@ -144,8 +137,7 @@ def getPoints(rho,theta):
 	return (x1,y1),(x2,y2)
 
 def AddHoughLines(lines,frame):
-	try:
-			
+	try:	
 		for line in lines:
 			for rho,theta in line:
 				p1,p2 = getPoints(rho,theta)
@@ -188,27 +180,24 @@ def getMedianLineSegment(rho,theta,Ymin,Ymax):
 	return (Xmin,Ymin),(Xmax,Ymax)	
 
 if __name__ == "__main__":
-	VideoPath = "1.mp4"
+	VideoPath = "3.mp4"
 	vidObj = cv2.VideoCapture(VideoPath)
 	ret, frame = vidObj.read()
 	while(ret):
 		fr = cv2.resize(frame, (960, 540))
-		# print(len(fr))
 		gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
 		lines,Segments = getHoughLines(iframe)
-		
 		try:
-			AddHoughLines(lines,fr)
-			
+			# AddHoughLines(lines,fr)
 			# AddHoughSegments(Segments,fr)
-			rho,theta = getMedianLine(lines)
+			rho,theta = getAverageLine(lines)
 			Ymin,Ymax = getYBoundary(Segments)
 			p1,p2 = getMedianLineSegment(rho,theta,Ymin,Ymax)
 			# print(p1,p2)
-			print(lines[0])
+			# print(lines[0])
 			cv2.line(fr,p1,p2,(0,0,255),1)
-			print("Success")
+			# print("Success")
 		except:
 			pass
 		cv2.imshow('Video',fr)
