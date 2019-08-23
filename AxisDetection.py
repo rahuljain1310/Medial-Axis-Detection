@@ -49,7 +49,33 @@ def getAverageLine(lines):
 	return rho,theta
 
 def joinLines(lines):
+	for x1,y1,x2,y2 in lines:
+		pass
+
+def theta_filter(lines):
 	pass
+
+def rho_filter(lines):
+	rhos = list(x for x,y in lines)
+	# max_rho = max(rhos)
+	# min_rho = min(rhos)
+	freq,bins = np.histogram(rhos,bins=60, range=range(1,1200))
+	mf = max(freq)
+	bins = 60
+	max_rho = 1199
+	min_rho = 0
+	scale_factor = (max_rho-min_rho+1)//bins
+	line_partition = list([] for i in range(bins))
+	for l in lines:
+		line_partition[min(l[0],max_rho)//scale_factor].append(l)
+	max_index = 0
+	max_freq = 0
+	for i in range(len(line_partition)):
+		l1 = len(line_partition[i])
+		if  (l1>max_freq):
+			max_freq = l1
+			max_index = i
+	return line_partition[i]
 
 
 def getMedialLine(lines):
@@ -97,19 +123,21 @@ def AddMedianAxis(rho,theta,frame):
 	# print(p1,p2)
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
-#def TruncateAxis(iframe,frame):
-	
+
 
 if __name__ == "__main__":
 	VideoPath = "1.mp4"
 	vidObj = cv2.VideoCapture(VideoPath)
 	ret, frame = vidObj.read()
 	while(ret):
+		
 		# fr = frame
 		fr = cv2.resize(frame, (960, 540))
+		print(len(fr))
 		gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
 		lines = getHoughLines(iframe)
+		print(lines[0][0])
 		# print(lines)
 		try:
 			AddHoughLines(lines,fr)
