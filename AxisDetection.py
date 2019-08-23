@@ -1,7 +1,7 @@
 ## Importing Libraries
 import cv2
 import numpy as np
-
+import statistics as st
 ## Constant ##
 Cyan = (255,255,0)
 
@@ -46,13 +46,29 @@ def getAverageLine(lines):
 			theta += t
 	rho = rho/L
 	theta = theta/L
-	return rho/L,theta/L
+	return rho,theta
+
+def joinLines(lines):
+	pass
+
+
+def getMedialLine(lines):
+	L = len(lines)
+	rho_a = []
+	theta_a = []
+	for line in lines:
+		for r,t in line:
+			rho_a.append(r)
+			theta_a.append(t)
+	rho = st.median(rho_a)
+	theta = st.median(theta_a)
+	return rho,theta
 
 def getHoughLines(iframe):
 	edges = cv2.Canny(iframe,50,100,apertureSize = 3)
 	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
 	showFrame('Edges',edges)
-	lines = cv2.HoughLines(edges,1,np.pi/180,100)
+	lines = cv2.HoughLinesP(edges,rho = 1,theta = np.pi/180,threshold = 50,minLineLength=20,maxLineGap=10)
 	return lines
 
 def getPoints(rho,theta):
@@ -69,15 +85,16 @@ def getPoints(rho,theta):
 def AddHoughLines(lines,frame):
 	try:
 		for line in lines:
-			for rho,theta in line:
-				p1,p2 = getPoints(rho,theta)
+			for x1,y1,x2,y2 in line:
+				p1 = (x1,y1)
+				p2 = (x2,y2)
 				cv2.line(frame,p1,p2,(0,255,255),2)
 	except:
 		pass
 
 def AddMedianAxis(rho,theta,frame):
 	p1,p2 = getPoints(rho,theta)
-	print(p1,p2)
+	# print(p1,p2)
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
 #def TruncateAxis(iframe,frame):
@@ -93,9 +110,10 @@ if __name__ == "__main__":
 		gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
 		lines = getHoughLines(iframe)
+		# print(lines)
 		try:
 			AddHoughLines(lines,fr)
-			rho,theta = getAverageLine(lines)
+			rho,theta = getMedialLine(lines)
 			AddMedianAxis(rho,theta,fr)
 		except:
 			pass
