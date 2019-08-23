@@ -4,6 +4,10 @@ import math
 import numpy as np
 import statistics as st
 ## Constant ##
+from math import sqrt
+# angle between two points
+
+	
 Cyan = (255,255,0)
 
 ## Background Removal ##
@@ -60,7 +64,7 @@ def theta_filter(lines):
 	if (not lines.__class__ == np.ndarray):
 
 		if lines==None:
-			return lines
+			return lines,0
 	for line in lines:
 		line_partition[int((line[0][1]*179.99/np.pi))//scale_factor].append(line)
 	max_index = 0
@@ -70,7 +74,7 @@ def theta_filter(lines):
 		if  (l1>max_freq):
 			max_freq = l1
 			max_index = i
-	return line_partition[max_index]
+	return (line_partition[max_index],max_index*scale_factor)
 	# except:
 	# 	if lines.__class__==None:
 	# 		return lines
@@ -88,23 +92,63 @@ def rho_filter(lines):
 	line_partition = list([] for i in range(bins))
 	if (not lines.__class__==np.ndarray):
 		if (lines==None):
-			return lines
+			return lines,0,lines,0
 	for l in lines:
 		line_partition[int(min(abs(l[0][0]),max_rho)/scale_factor)].append(l)
 	max_index = 0
+	second_max_index = 0
+
 	max_freq = 0
+	second_max_freq = 0
+
 	for i in range(len(line_partition)):
 		l1 = len(line_partition[i])
 		if  (l1>max_freq):
+			second_max_freq = max_freq
 			max_freq = l1
+			second_max_index = max_index
 			max_index = i
-	return line_partition[max_index]
+
+		elif (l1>second_max_freq):
+			second_max_freq = l1
+			second_max_index = i
+	if (second_max_index==0):
+		second_max_index = max_index
+	
+	return (line_partition[max_index],scale_factor*max_index,line_partition[second_max_index],scale_factor*second_max_index)
 	# except:
 	# 	if lines.__class__ ==None:
 	# 		return lines
 	# 	else:
 	# 		print (lines)
 	# 		return None
+
+def get_extreme_coordinates(lines):
+	histogram_bin_size = 10
+	pass
+
+def distance_from_line(x,y,rho,theta):
+	return abs(x*np.cos(theta)+y*np.sin(theta)-rho)
+
+def segment_filter(x1,y1,x2,y2,rho,thet):
+	theta = thet*np.pi/180
+	a1 = x1*np.cos(theta)+y1*np.sin(theta)-rho
+	a2 = x2*np.cos(theta)+y2*np.sin(theta)-rho
+	sl = sqrt((x1-x2)**2 + (y1-y2)**2)
+	
+	
+	angle = np.arcsin((a1-a2)/sl)
+	if (abs(angle*180/np.pi)>2):
+		return False
+	mean_dist = (abs(a1)+abs(a2))//2
+	if (mean_dist>15):
+		return False
+	return True
+	
+
+
+		
+
 
 
 def getMedialLine(lines):
@@ -120,17 +164,36 @@ def getMedialLine(lines):
 	return rho,theta
 
 def getHoughLines(iframe):
-	edges = cv2.Canny(iframe,50,100,apertureSize = 3)
+	edges = cv2.Canny(iframe,50,100,apertureSize = 7)
+	# edges = iframe
 	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
 	showFrame('Edges',edges)
 	lines = cv2.HoughLines(edges,1,np.pi/180,90)
-	lines = rho_filter(theta_filter(lines))
+	linesf1,theta = theta_filter(lines)
+	linesf2,rho,linesf3,rho2 = rho_filter(linesf1) 
+
 	Segments = cv2.HoughLinesP(edges,rho = 1,theta = np.pi/180,threshold = 75,minLineLength=20,maxLineGap=10)
-	
-	if lines.__class__==np.ndarray:
-		# print((lines[0][0][0]))
-		pass
-	return lines,Segments
+	def segf(segment):
+		x1,y1,x2,y2 = segment[0][0],segment[0][1],segment[0][2],segment[0][3]
+		return segment_filter(x1,y1,x2,y2,rho,theta) or segment_filter(x1,y1,x2,y2,-rho,theta)
+	def segf2(segment):
+		x1,y1,x2,y2 = segment[0][0],segment[0][1],segment[0][2],segment[0][3]
+		return segment_filter(x1,y1,x2,y2,rho2,theta) or segment_filter(x1,y1,x2,y2,-rho2,theta)
+	linesf = []
+	segmentsf4 = []
+	if (Segments.__class__==np.ndarray and linesf2.__class__==list and linesf3.__class__==list):
+		#print(rho,theta)
+		#print(len(Segments))
+		segmentsf1 = list(filter(segf,Segments))
+		segmentsf2 = list(filter(segf2,Segments))
+		#print(len(segmentsf1))
+		linesf = linesf2+linesf3
+		segmentsf4 = segmentsf1 + segmentsf2
+
+	else:
+		segmentsf1 = None
+
+	return (linesf,segmentsf4)
 
 def getPoints(rho,theta):
 	a = np.cos(theta)
@@ -145,7 +208,6 @@ def getPoints(rho,theta):
 
 def AddHoughLines(lines,frame):
 	try:
-			
 		for line in lines:
 			for rho,theta in line:
 				p1,p2 = getPoints(rho,theta)
@@ -166,26 +228,39 @@ def AddMedianAxis(rho,theta,frame):
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
 def getYBoundary(Segments):
-	ymin = math.inf
-	ymax = 0
-	for s in Segments:
-		for _,y1,_,y2 in s:
-			if y2<y1:
-				t = y1
-				y1 = y2
-				y2 = t
-			if y1<ymin:
-				ymin = y1
-			if y2>ymax:
-				ymax = y2
+	
+	ys = list(s[0][1] for s in Segments) + list(s[0][3] for s in Segments)
+	ys.sort()
+	ll = len(ys)
+	picks = int((ll//5+1))
+	#print(picks)
+	ymin = st.mean(ys[:picks])
+	ymax = st.mean(ys[ll-1-picks:]) 
+	#print(ymin,ymax,10000)
+	# yhists = np.histogram(ys,10)
+	# ymin = st.median(yhists[0])
+	# ymax = st.median(yhists[9])
 	return ymin,ymax
+	# ymin = math.inf
+	# ymax = 0
+	# for s in Segments:
+	# 	for _,y1,_,y2 in s:
+	# 		if y2<y1:
+	# 			t = y1
+	# 			y1 = y2
+	# 			y2 = t
+	# 		if y1<ymin:
+	# 			ymin = y1
+	# 		if y2>ymax:
+	# 			ymax = y2
+	# return ymin,ymax
 
 def getMedianLineSegment(rho,theta,Ymin,Ymax):
 	if theta == 0:
-		return (rho,Ymin),(rho,Ymax)
+		return (rho,int(Ymin)),(rho,int(Ymax))
 	Xmin = int(rho/np.cos(theta) - Ymin*np.tan(theta))
 	Xmax = int(rho/np.cos(theta) - Ymax*np.tan(theta))
-	return (Xmin,Ymin),(Xmax,Ymax)	
+	return (Xmin,int(Ymin)),(Xmax,int(Ymax))	
 
 if __name__ == "__main__":
 	VideoPath = "1.mp4"
@@ -199,15 +274,15 @@ if __name__ == "__main__":
 		lines,Segments = getHoughLines(iframe)
 		
 		try:
-			AddHoughLines(lines,fr)
+			# AddHoughLines(lines,fr)
 			
 			# AddHoughSegments(Segments,fr)
 			rho,theta = getMedianLine(lines)
 			Ymin,Ymax = getYBoundary(Segments)
 			p1,p2 = getMedianLineSegment(rho,theta,Ymin,Ymax)
-			# print(p1,p2)
-			print(lines[0])
-			cv2.line(fr,p1,p2,(0,0,255),1)
+			print(p1,p2)
+			print(lines[0],'3')
+			cv2.line(fr,(p1),(p2),(0,0,255),1)
 			print("Success")
 		except:
 			pass
@@ -219,3 +294,22 @@ if __name__ == "__main__":
 ## Cleanup ##
 vidObj.release()
 cv2.destroyAllWindows()
+
+
+def length(v):
+    return sqrt(v[0]**2+v[1]**2)
+def dot_product(v,w):
+   return v[0]*w[0]+v[1]*w[1]
+def determinant(v,w):
+   return v[0]*w[1]-v[1]*w[0]
+def inner_angle(v,w):
+   cosx=dot_product(v,w)/(length(v)*length(w))
+   rad=np.arccos(cosx) # in radians
+   return rad*180/np.pi # returns degrees
+def angle_clockwise(A, B):
+    inner=inner_angle(A,B)
+    det = determinant(A,B)
+    if det<0: #this is a property of the det. If the det < 0 then B is clockwise of A
+        return inner
+    else: # if the det > 0 then A is immediately clockwise of B
+        return 360-inner
