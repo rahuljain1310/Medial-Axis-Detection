@@ -1,5 +1,6 @@
 ## Importing Libraries
 import cv2
+import math
 import numpy as np
 
 ## Constant ##
@@ -35,15 +36,13 @@ def showFrame (name,frame):
 	cv2.imshow(name,frame)
 	return 27 == (cv2.waitKey(30) & 0xff)
 
-def getAverageLine(lines):
+def getMedianLine(lines):
 	L = len(lines)
 	rho,theta = 0,0
 	for line in lines:
 		for r,t in line:
 			rho += r
 			theta += t
-	rho = rho/L
-	theta = theta/L
 	return rho/L,theta/L
 
 def getHoughLines(iframe):
@@ -51,7 +50,8 @@ def getHoughLines(iframe):
 	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
 	showFrame('Edges',edges)
 	lines = cv2.HoughLines(edges,1,np.pi/180,100)
-	return lines
+	Segments = cv2.HoughLinesP(edges,1,np.pi/180,100,minLineLength = 100,maxLineGap = 50)
+	return lines,Segments
 
 def getPoints(rho,theta):
 	a = np.cos(theta)
@@ -73,13 +73,39 @@ def AddHoughLines(lines,frame):
 	except:
 		pass
 
+def AddHoughSegments(Segments,frame):
+	try:
+		for c in Segments:
+			for x1,y1,x2,y2 in c:
+				cv2.line(frame,(x1,y1),(x2,y2),(255,165,0),2)
+	except:
+		pass
+
 def AddMedianAxis(rho,theta,frame):
 	p1,p2 = getPoints(rho,theta)
-	print(p1,p2)
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
-def TruncateAxis(iframe,frame):
-	
+def getYBoundary(Segments):
+	ymin = math.inf
+	ymax = 0
+	for s in Segments:
+		for _,y1,_,y2 in s:
+			if y2<y1:
+				t = y1
+				y1 = y2
+				y2 = t
+			if y1<ymin:
+				ymin = y1
+			if y2>ymax:
+				ymax = y2
+	return ymin,ymax
+
+def getMedianLineSegment(rho,theta,Ymin,Ymax):
+	if theta == 0:
+		return (rho,Ymin),(rho,Ymax)
+	Xmin = int(rho/np.cos(theta) - Ymin*np.tan(theta))
+	Xmax = int(rho/np.cos(theta) - Ymax*np.tan(theta))
+	return (Xmin,Ymin),(Xmax,Ymax)	
 
 if __name__ == "__main__":
 	VideoPath = "1.mp4"
@@ -90,11 +116,16 @@ if __name__ == "__main__":
 		fr = cv2.resize(frame, (960, 540))
 		gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
-		lines = getHoughLines(iframe)
+		lines,Segments = getHoughLines(iframe)
 		try:
-			AddHoughLines(lines,fr)
-			rho,theta = getAverageLine(lines)
-			AddMedianAxis(rho,theta,fr)
+			# AddHoughLines(lines,fr)
+			# AddHoughSegments(Segments,fr)
+			rho,theta = getMedianLine(lines)
+			Ymin,Ymax = getYBoundary(Segments)
+			p1,p2 = getMedianLineSegment(rho,theta,Ymin,Ymax)
+			# print(p1,p2)
+			cv2.line(fr,p1,p2,(255,0,0),2)
+			print("Success")
 		except:
 			pass
 		cv2.imshow('Video',fr)
