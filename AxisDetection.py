@@ -3,12 +3,10 @@ import cv2
 import math
 import numpy as np
 import statistics as st
-## Constant ##
-from math import sqrt
-# angle between two points
 
-	
+## Constant ##
 Cyan = (255,255,0)
+Red = (0,0,255)
 
 ## Background Removal ##
 # BgSubstract = cv2.createBackgroundSubtractorMOG2(history=8000,detectShadows=False)
@@ -35,13 +33,14 @@ def BackgroundRemove (frame):
 	# fgmask = cv2.dilate(fgmask,kernelRect, iterations =2)
 	# fgmask = cv2.erode(fgmask,kernel,iterations=1)
 	# fgmask = cv2.morphologyEx(fgmask,cv2.MORPH_CLOSE ,kernelBig, iterations=2)
-	showFrame('BackGround Remove',fgmask)
+	# showFrame('BackGround Remove',fgmask)
 	return fgmask
 
 def showFrame (name,frame):
 	cv2.imshow(name,frame)
 	return 27 == (cv2.waitKey(30) & 0xff)
 
+## Average Line in (rho,theta) space
 def getAverageLine(lines):
 	L = len(lines)
 	rho,theta = 0,0
@@ -52,10 +51,6 @@ def getAverageLine(lines):
 	rho = rho/L
 	theta = theta/L
 	return rho,theta
-
-def joinLines(lines):
-	for x1,y1,x2,y2 in lines:
-		pass
 
 def theta_filter(lines):
 	bins = 180
@@ -132,9 +127,7 @@ def segment_filter(x1,y1,x2,y2,rho,thet):
 	theta = thet*np.pi/180
 	a1 = x1*np.cos(theta)+y1*np.sin(theta)-rho
 	a2 = x2*np.cos(theta)+y2*np.sin(theta)-rho
-	sl = sqrt((x1-x2)**2 + (y1-y2)**2)
-	
-	
+	sl = math.sqrt((x1-x2)**2 + (y1-y2)**2)
 	angle = np.arcsin((a1-a2)/sl)
 	if (abs(angle*180/np.pi)>2):
 		return False
@@ -143,12 +136,7 @@ def segment_filter(x1,y1,x2,y2,rho,thet):
 		return False
 	return True
 	
-
-
-		
-
-
-
+## Returns the Median Line of Given Lines
 def getMedialLine(lines):
 	L = len(lines)
 	rho_a = []
@@ -161,11 +149,11 @@ def getMedialLine(lines):
 	theta = st.median(theta_a)
 	return rho,theta
 
+## This function returns 
 def getHoughLines(iframe):
 	edges = cv2.Canny(iframe,30,70)
-	# edges = iframe
 	# edges = cv2.Sobel(iframe,ddepth=-5,dx=1,dy=1)
-	showFrame('Edges',edges)
+	# showFrame('Edges',edges)
 	lines = cv2.HoughLines(edges,1,np.pi/180,60)
 	linesf1,theta = theta_filter(lines)
 	linesf2,rho,linesf3,rho2 = rho_filter(linesf1) 
@@ -195,6 +183,7 @@ def getHoughLines(iframe):
 		segmentsf4 =None
 	return (linesf2,linesf3,segmentsf4)
 
+## Get Line Coordinates from Rho,Theta
 def getPoints(rho,theta):
 	a = np.cos(theta)
 	b = np.sin(theta)
@@ -206,6 +195,7 @@ def getPoints(rho,theta):
 	y2 = int(y0 - 1000*a)
 	return (x1,y1),(x2,y2)
 
+## Show Hough Lines in the Video Frame
 def AddHoughLines(lines,frame):
 	try:
 		for line in lines:
@@ -215,6 +205,7 @@ def AddHoughLines(lines,frame):
 	except:
 		pass
 
+## Show Hough Segments in the Video Frame
 def AddHoughSegments(Segments,frame):
 	try:
 		for c in Segments:
@@ -224,23 +215,25 @@ def AddHoughSegments(Segments,frame):
 	except:
 		pass
 
+## Add Line To Frame from Theta,Rho
 def AddMedianAxis(rho,theta,frame):
 	p1,p2 = getPoints(rho,theta)
 	cv2.line(frame,p1,p2,(255,0,255),2)
 
+## Get Min/Max Y-Coordinates 
 def getYBoundary(Segments):
-	
 	ys = list(s[0][1] for s in Segments) + list(s[0][3] for s in Segments)
 	ys.sort()
 	ll = len(ys)
 	picks = int((ll//5+1))
 	#print(picks)
-	ymin = st.mean(ys[:picks])
+	# ymin = st.mean(ys[:picks])
+	ymin = 0
 	ymax = st.mean(ys[ll-1-picks:]) 
-	
 	return ymin,ymax
 	
 
+## Get Coordinates of Medial Axis
 def getMedianLineSegment(rho,theta,Ymin,Ymax):
 	if theta == 0:
 		return (int(rho),int(Ymin)),(int(rho),int(Ymax))
@@ -248,42 +241,58 @@ def getMedianLineSegment(rho,theta,Ymin,Ymax):
 	Xmax = int(rho/np.cos(theta) - Ymax*np.tan(theta))
 	return (Xmin,int(Ymin)),(Xmax,int(Ymax))	
 
+def length(v):
+    return math.sqrt(v[0]**2+v[1]**2)
+
+def dot_product(v,w):
+   return v[0]*w[0]+v[1]*w[1]
+
+def determinant(v,w):
+   return v[0]*w[1]-v[1]*w[0]
+
+def inner_angle(v,w):
+   cosx=dot_product(v,w)/(length(v)*length(w))
+   rad=np.arccos(cosx) # in radians
+   return rad*180/np.pi # returns degrees
+
+def angle_clockwise(A, B):
+    inner=inner_angle(A,B)
+    det = determinant(A,B)
+    if det<0: #this is a property of the det. If the det < 0 then B is clockwise of A
+        return inner
+    else: # if the det > 0 then A is immediately clockwise of B
+        return 360-inner
+
 if __name__ == "__main__":
 	VideoPath = input()
 	vidObj = cv2.VideoCapture(VideoPath)
 	ret, frame = vidObj.read()
+	fps = vidObj.get(cv2.CAP_PROP_FPS)
+	print(fps)
+	h,w,_ = frame.shape
+	video = cv2.VideoWriter("result_"+VideoPath,-1,fps,(w,h))
 	while(ret):
-		fr = cv2.resize(frame, (960, 540))
-		# gray = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
-		iframe = BackgroundRemove(fr)
+		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+		iframe = BackgroundRemove(gray)
+		# lines,Segments = getHoughLines(iframe)
 		lines1,lines2,Segments = getHoughLines(iframe)
-		#print(lines1.__class__,lines2.__class__)
 		if (lines1.__class__==list and lines2.__class__==list and Segments.__class__==list):
-			# print(Segments)
-			# AddHoughLines(lines,fr)
-			
-			# AddHoughSegments(Segments,fr)
-			# rho,theta = getAverageLine(lines)
+			# AddHoughLines(lines,frame)
+			# AddHoughSegments(Segments,frame)
 			rho1,theta1 = getAverageLine(lines1)
 			rho2,theta2 = getAverageLine(lines2)
 			rho = (rho1+rho2)//2
 			theta = (theta1+theta2)/2
+			# rho,theta = getAverageLine(lines)
 			Ymin,Ymax = getYBoundary(Segments)
 			p1,p2 = getMedianLineSegment(rho,theta,Ymin,Ymax)
-			# print(p1,p2)
-			# print(lines[0],'3')
-			cv2.line(fr,(p1),(p2),(0,0,255),1)
-			# print("Success")
+			cv2.line(frame,p1,p2,Red,2)
+			print("Line Added")
 		else:
-			# print('error')
-			pass
-		cv2.imshow('Video',fr)
-		if 27 == (cv2.waitKey(20) & 0xff):
-			break
+			print("--- No Line Added. --- ")
+		showFrame(VideoPath,frame)
+		video.write(frame)
 		ret, frame = vidObj.read()
-
-## Cleanup ##
-vidObj.release()
-cv2.destroyAllWindows()
-
-
+	## Cleanup ##
+	vidObj.release()
+	cv2.destroyAllWindows()
