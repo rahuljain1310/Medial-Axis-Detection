@@ -181,7 +181,14 @@ def getHoughLines(iframe):
 		segmentsf1 = None
 	if (segmentsf4 == []):
 		segmentsf4 =None
-	return (linesf2,linesf3,segmentsf4)
+
+	edges1 = cv2.cvtColor(edges,cv2.COLOR_GRAY2BGR)
+	AddHoughLines(linesf1,edges1)
+	AddHoughLines(linesf2,edges1)
+	AddHoughSegments(Segments,edges1)
+	# cv2.imshow('Edges Over Canny',edges1)
+	
+	return (linesf2,linesf3,segmentsf4,edges1)
 
 ## Get Line Coordinates from Rho,Theta
 def getPoints(rho,theta):
@@ -267,17 +274,16 @@ if __name__ == "__main__":
 	VideoPath = input()
 	vidObj = cv2.VideoCapture(VideoPath)
 	ret, frame = vidObj.read()
-	fps = vidObj.get(cv2.CAP_PROP_FPS)
-	print(fps)
 	h,w,_ = frame.shape
-	video = cv2.VideoWriter("result_"+VideoPath,-1,fps,(w,h))
+	video=cv2.VideoWriter("result_"+VideoPath,-1,30,(w,h))
 	while(ret):
 		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 		iframe = BackgroundRemove(gray)
 		# lines,Segments = getHoughLines(iframe)
-		lines1,lines2,Segments = getHoughLines(iframe)
+		lines1,lines2,Segments,frameOutput = getHoughLines(iframe)
 		if (lines1.__class__==list and lines2.__class__==list and Segments.__class__==list):
-			# AddHoughLines(lines,frame)
+			# AddHoughLines(lines1,frame)
+			# AddHoughLines(lines2,frame)
 			# AddHoughSegments(Segments,frame)
 			rho1,theta1 = getAverageLine(lines1)
 			rho2,theta2 = getAverageLine(lines2)
@@ -286,12 +292,12 @@ if __name__ == "__main__":
 			# rho,theta = getAverageLine(lines)
 			Ymin,Ymax = getYBoundary(Segments)
 			p1,p2 = getMedianLineSegment(rho,theta,Ymin,Ymax)
-			cv2.line(frame,p1,p2,Red,2)
+			cv2.line(frameOutput,p1,p2,Red,2)
 			print("Line Added")
 		else:
 			print("--- No Line Added. --- ")
-		showFrame(VideoPath,frame)
-		video.write(frame)
+		# showFrame(VideoPath,frameOutput)
+		video.write(frameOutput)
 		ret, frame = vidObj.read()
 	## Cleanup ##
 	vidObj.release()
